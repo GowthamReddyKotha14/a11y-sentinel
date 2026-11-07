@@ -1,0 +1,23 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: python -m playwright install --with-deps chromium
+      - run: pytest -q
+      - name: Run the end-to-end demo
+        run: sentinel demo --out-dir demo_output
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-report
+          path: demo_output/report.html

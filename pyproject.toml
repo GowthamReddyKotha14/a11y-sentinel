@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "a11y-sentinel"
+version = "0.1.0"
+description = "WCAG 2.1 AA regression scanner for websites, with an LLM fix agent whose every suggestion is verified in a real browser."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Gowtham Reddy Kotha"}]
+dependencies = [
+  "playwright>=1.45",
+  "duckdb>=1.0",
+  "jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8", "anthropic>=0.40"]
+
+[project.scripts]
+sentinel = "sentinel.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sentinel*"]
+
+[tool.setuptools.package-data]
+sentinel = ["vendor/*", "templates/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,21 @@
+# Copy into .github/workflows/ of a website repo.
+# Fails the PR if the preview deployment adds NEW serious-or-worse WCAG 2.1 AA
+# violations compared with the committed baseline. Existing backlog never fails it.
+name: accessibility-gate
+on: pull_request
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install "a11y-sentinel @ git+https://github.com/GowthamReddyKotha14/a11y-sentinel"
+      - run: python -m playwright install --with-deps chromium
+      - name: Scan the preview site
+        run: sentinel scan "$PREVIEW_URL" --max-pages 30 --label "pr-${{ github.event.number }}" --json current.json
+        env:
+          PREVIEW_URL: ${{ vars.PREVIEW_URL }}
+      - name: Compare with baseline
+        run: sentinel gate current.json --baseline .a11y/baseline.json --min-impact serious
