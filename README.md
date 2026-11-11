@@ -4,6 +4,8 @@
 
 [![ci](https://github.com/GowthamReddyKotha14/a11y-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/GowthamReddyKotha14/a11y-sentinel/actions/workflows/ci.yml)
 
+**[▶ Try the live demo](https://gowthamreddykotha14.github.io/a11y-sentinel/)**: scan a page and watch fixes get verified, right in your browser.
+
 Public universities must make their websites meet **WCAG 2.1 Level AA** under the DOJ's ADA Title II rule, with the compliance date for large public entities now **April 26, 2027**. A one-time audit doesn't hold: a site that passes in March can fail in May after one content update.
 
 A11y Sentinel treats accessibility like test coverage:

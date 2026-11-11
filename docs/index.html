@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A11y Sentinel: catch accessibility regressions before they ship</title>
+<meta name="description" content="WCAG 2.1 AA regression scanner with a fix agent whose every suggestion is verified in a real browser. Try the live demo.">
+<meta property="og:title" content="A11y Sentinel">
+<meta property="og:description" content="Catch accessibility regressions before they ship. Live in-browser demo.">
+<meta name="theme-color" content="#070b16">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070b16; --bg-2:#0b1122; --card:#0f172b; --card-2:#131c34; --line:#1f2a47; --line-2:#2a3760;
+  --ink:#eef2ff; --ink-2:#c3cbe0; --ink-3:#97a3c2;
+  --cyan:#22d3ee; --lime:#a3e635; --rose:#fb7185; --amber:#fbbf24; --emerald:#34d399; --violet:#a78bfa;
+  --grad:linear-gradient(90deg,var(--cyan),var(--lime));
+  --radius:16px;
+  --display:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:calc(76px + env(safe-area-inset-top,0px))}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation:none!important;transition:none!important}}
+body{margin:0;background:var(--bg);color:var(--ink-2);font:400 1rem/1.65 var(--body);
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(900px 500px at 85% -10%,rgba(34,211,238,.13),transparent 60%),
+    radial-gradient(700px 500px at -10% 30%,rgba(163,230,53,.07),transparent 60%),
+    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px) 0 0/48px 48px,
+    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px) 0 0/48px 48px}
+a{color:var(--cyan)}
+:focus-visible{outline:3px solid var(--lime);outline-offset:3px;border-radius:6px}
+h1,h2,h3{font-family:var(--display);color:var(--ink);letter-spacing:-.02em;margin:0}
+code,pre,.mono{font-family:var(--mono)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.skip{position:absolute;left:-999px;top:0}.skip:focus{left:16px;top:16px;z-index:100;background:var(--card);padding:8px 14px}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:50;padding-top:env(safe-area-inset-top,0px);
+  background:rgba(7,11,22,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:68px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font:700 1.15rem var(--display)}
+.brand .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--grad);color:#06101a}
+.nav nav{flex:1;display:flex;justify-content:center}
+.nav ul{display:flex;gap:22px;list-style:none;margin:0;padding:0}
+.nav ul a{color:var(--ink-2);text-decoration:none;font-weight:500;font-size:.95rem}
+.nav ul a:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:12px;padding:11px 18px;font:600 .95rem var(--body);
+  text-decoration:none;cursor:pointer;border:1px solid var(--line-2);background:var(--card-2);color:var(--ink);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-1px);border-color:var(--cyan)}
+.btn.primary{background:var(--grad);color:#05101a;border:0}
+.btn.small{padding:7px 12px;font-size:.85rem;border-radius:10px}
+.btn:disabled{opacity:.55;cursor:wait;transform:none}
+@media (max-width:860px){.nav nav{display:none}.nav .wrap{justify-content:space-between}}
+
+/* hero */
+.hero{padding:84px 0 64px}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+@media (max-width:980px){.hero .wrap{grid-template-columns:1fr}}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-2);background:rgba(15,23,43,.7);
+  border-radius:999px;padding:6px 14px;font-size:.85rem;color:var(--ink-2)}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px var(--lime)}
+.hero h1{font-size:clamp(2.3rem,4.8vw,3.6rem);line-height:1.04;margin:20px 0 18px}
+.hero p.sub{font-size:1.15rem;max-width:36rem;margin:0 0 28px}
+.hero p.sub strong{color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:linear-gradient(180deg,var(--card-2),var(--card));border:1px solid var(--line);border-radius:14px;padding:14px 12px;text-align:center}
+.stat b{display:block;font:700 1.5rem var(--display);color:var(--ink);white-space:nowrap}
+.stat span{font-size:.8rem;color:var(--ink-3);line-height:1.35;display:block}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+
+/* hero visual */
+.mock{position:relative}
+.browser{border:1px solid var(--line-2);border-radius:18px;background:var(--card);overflow:hidden;
+  box-shadow:0 30px 80px -20px rgba(34,211,238,.25),0 0 0 1px rgba(255,255,255,.02) inset}
+.bar{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg-2)}
+.bar i{width:11px;height:11px;border-radius:50%;background:#2a3557}
+.bar .url{margin-left:10px;flex:1;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font:.78rem var(--mono);color:var(--ink-3)}
+.page{position:relative;padding:26px 26px 92px;background:#f8fafc;color:#1e293b;overflow:hidden}
+.page h4{margin:0 0 4px;font:700 1.1rem var(--display);color:#0f172a}
+.page .faint{color:#6b7280;font-size:.85rem;margin:0 0 14px}
+.page .field{height:34px;border:1px solid #cbd5e1;border-radius:8px;margin:0 0 10px;background:#fff;display:flex;align-items:center;padding:0 10px;font-size:.8rem;color:#64748b}
+.page .row{display:flex;gap:10px;align-items:center}
+.page .submit{background:#1d4ed8;color:#fff;border-radius:8px;padding:8px 14px;font-size:.85rem;font-weight:600}
+.page .icon{width:34px;height:34px;border-radius:50%;background:#e2e8f0;display:grid;place-items:center}
+.flag{position:relative;outline:2.5px solid var(--rose);outline-offset:3px;border-radius:6px}
+.flag::after{content:attr(data-n);position:absolute;top:-12px;right:-12px;width:22px;height:22px;border-radius:50%;
+  background:var(--rose);color:#1a0610;font:700 .72rem/22px var(--body);text-align:center}
+.beam{position:absolute;left:0;right:0;height:70px;top:-70px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(34,211,238,.20),rgba(34,211,238,.55) 92%,transparent);
+  animation:scan 3.6s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes scan{0%{top:-70px}70%,100%{top:100%}}
+.toast{position:absolute;left:-26px;bottom:-34px;background:#1a0f17;border:1px solid rgba(251,113,133,.5);border-radius:14px;padding:12px 16px;
+  box-shadow:0 20px 40px -10px rgba(251,113,133,.35);max-width:290px}
+.toast b{color:var(--rose);display:block;font-size:.9rem}
+.toast span{font:.78rem var(--mono);color:var(--ink-2)}
+.chip-ok{position:absolute;right:-14px;bottom:28px;background:#0d1f17;border:1px solid rgba(52,211,153,.5);border-radius:12px;padding:8px 12px;font-size:.82rem;color:var(--emerald);font-weight:600}
+@media (max-width:560px){.toast{left:8px}.chip-ok{right:8px}}
+
+/* sections */
+section{padding:80px 0}
+.eyebrow{font:600 .8rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--lime);margin:0 0 10px}
+.sec-h{font-size:clamp(1.8rem,3.4vw,2.6rem);margin-bottom:12px}
+.sec-p{max-width:46rem;margin:0 0 36px;font-size:1.05rem}
+.card{background:linear-gradient(180deg,var(--card-2),var(--card));border:1px solid var(--line);border-radius:var(--radius);min-width:0}
+.grid3>*,.demo>*,.flow>*,.dec>*,.hero .wrap>*{min-width:0}
+
+/* demo */
+.demo{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:980px){.demo{grid-template-columns:1fr}}
+.panel{padding:18px;display:flex;flex-direction:column;min-width:0}
+.panel h3{font-size:1.05rem;display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.presets button{font:500 .85rem var(--body);color:var(--ink-2);background:var(--bg-2);border:1px solid var(--line-2);border-radius:999px;padding:6px 12px;cursor:pointer}
+.presets button[aria-pressed="true"]{border-color:var(--cyan);color:var(--ink);background:rgba(34,211,238,.1)}
+label.lbl{font-size:.85rem;color:var(--ink-3);margin-bottom:6px;display:block}
+textarea{width:100%;min-height:230px;resize:vertical;background:#060a14;color:#d6def5;border:1px solid var(--line-2);border-radius:12px;padding:14px;
+  font:.8rem/1.55 var(--mono);tab-size:2}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.frame-wrap{margin-top:14px;border:1px solid var(--line-2);border-radius:12px;overflow:hidden;background:#fff}
+.frame-wrap .bar{padding:8px 12px}
+iframe{display:block;width:100%;height:300px;border:0;background:#fff}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.summary div{background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.summary b{display:block;font:700 1.5rem var(--display);color:var(--ink)}
+.summary span{font-size:.78rem;color:var(--ink-3)}
+.summary .total b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.empty{flex:1;display:grid;place-items:center;text-align:center;color:var(--ink-3);padding:40px 10px;border:1px dashed var(--line-2);border-radius:12px}
+.issues{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;max-height:640px;overflow:auto;padding-right:4px}
+.issue{background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.issue.done{border-color:rgba(52,211,153,.45)}
+.issue-top{display:flex;gap:10px;align-items:flex-start}
+.num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--rose);color:#1a0610;font:700 .75rem/24px var(--body);text-align:center}
+.issue.done .num{background:var(--emerald);color:#04150d}
+.issue h4{margin:0;font:600 .95rem var(--body);color:var(--ink)}
+.imp{display:inline-block;font:600 .7rem var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:999px;margin-right:6px}
+.imp.critical{background:rgba(251,113,133,.15);color:var(--rose)}
+.imp.serious{background:rgba(251,191,36,.14);color:var(--amber)}
+.imp.moderate,.imp.minor{background:rgba(167,139,250,.15);color:var(--violet)}
+.meta{font-size:.8rem;color:var(--ink-3)}
+.snip{margin:8px 0 0;background:#060a14;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:.75rem/1.5 var(--mono);color:#cdd6f4;white-space:pre-wrap;word-break:break-all}
+.issue .actions{margin-top:10px}
+.verdict{margin-top:10px;border-radius:10px;padding:10px 12px;font-size:.85rem}
+.verdict.ok{background:rgba(52,211,153,.09);border:1px solid rgba(52,211,153,.35);color:#c9f7e2}
+.verdict.no{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.35);color:#ffd5dc}
+.verdict b{display:block;margin-bottom:4px}
+.verdict.ok b{color:var(--emerald)}.verdict.no b{color:var(--rose)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+@media (max-width:560px){.pair{grid-template-columns:1fr}}
+.pair small{display:block;color:var(--ink-3);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em}
+.note{font-size:.85rem;color:var(--ink-3);margin-top:12px}
+.log{margin-top:16px}
+.log h4{font:600 .9rem var(--body);color:var(--emerald);margin:0 0 8px}
+.log ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.log li{background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);border-radius:10px;padding:8px 12px;font-size:.82rem}
+.log li code{color:var(--ink)}
+.status{min-height:1.4em;font-size:.88rem;color:var(--ink-2);margin-top:8px}
+
+/* results */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media (max-width:980px){.grid3{grid-template-columns:1fr}}
+.res{padding:22px}
+.res h3{font-size:1.05rem;margin-bottom:4px}
+.res .meta{margin-bottom:16px;display:block}
+.ledger{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 18px}
+.ledger .v{text-align:center}
+.ledger .v b{font:700 2.4rem var(--display);color:var(--ink);display:block;line-height:1}
+.ledger .v span{font-size:.8rem;color:var(--ink-3)}
+.ledger .arrow{flex:1;height:2px;background:var(--line-2);position:relative}
+.ledger .arrow::after{content:"";position:absolute;right:-2px;top:-5px;border:6px solid transparent;border-left-color:var(--line-2)}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.trio div{border-radius:10px;padding:10px;text-align:center;background:var(--bg-2);border:1px solid var(--line)}
+.trio b{display:block;font:700 1.4rem var(--display)}
+.trio .n b{color:var(--rose)}.trio .f b{color:var(--emerald)}.trio .o b{color:var(--ink)}
+.trio span{font-size:.75rem;color:var(--ink-3)}
+.term{background:#05080f;border:1px solid var(--line);border-radius:12px;padding:14px;font:.76rem/1.65 var(--mono);color:#cbd5e1;overflow-x:auto;white-space:pre}
+.term .err{color:var(--rose)}.term .ok{color:var(--emerald)}.term .dim{color:#7c88a8}
+.donut{display:flex;align-items:center;gap:18px}
+.donut svg{flex:none}
+.bars{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.bars .r{display:grid;grid-template-columns:132px 1fr 26px;gap:10px;align-items:center;font-size:.82rem}
+.bars .r code{font-size:.75rem;color:var(--ink-2)}
+.bars .t{height:10px;background:var(--bg-2);border-radius:99px;overflow:hidden}
+.bars .t i{display:block;height:100%;background:var(--grad);border-radius:99px}
+.bars .r b{color:var(--ink);text-align:right;font-weight:600}
+.wide{grid-column:span 2}
+@media (max-width:980px){.wide{grid-column:auto}}
+
+/* architecture */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;position:relative}
+@media (max-width:980px){.flow{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.flow{grid-template-columns:1fr}}
+.node{padding:18px;position:relative}
+.node .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:1.3rem;background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);margin-bottom:12px}
+.node h3{font-size:1rem;margin-bottom:4px}
+.node p{margin:0;font-size:.88rem;color:var(--ink-3)}
+.node .tag{display:inline-block;margin-top:10px;font:.72rem var(--mono);color:var(--lime)}
+.loop{margin-top:16px;padding:18px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.loop .step{flex:1;min-width:150px;text-align:center;padding:12px;border-radius:12px;background:var(--bg-2);border:1px solid var(--line)}
+.loop .step b{display:block;color:var(--ink);font-family:var(--display)}
+.loop .step span{font-size:.8rem;color:var(--ink-3)}
+.loop .arr{color:var(--cyan);font-size:1.3rem}
+.loop .arr.back{color:var(--rose)}
+
+/* decisions */
+.dec{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:980px){.dec{grid-template-columns:1fr 1fr}}
+@media (max-width:620px){.dec{grid-template-columns:1fr}}
+.d{padding:20px}
+.d .k{font:600 .75rem var(--mono);color:var(--cyan)}
+.d h3{font-size:1.02rem;margin:6px 0 8px}
+.d p{margin:0;font-size:.9rem;color:var(--ink-3)}
+
+/* stack */
+.stack{display:flex;flex-wrap:wrap;gap:10px}
+.stack span{border:1px solid var(--line-2);background:var(--card);border-radius:12px;padding:10px 14px;font-weight:500;color:var(--ink)}
+.stack span small{display:block;color:var(--ink-3);font-weight:400;font-size:.78rem}
+
+footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--ink-3);font-size:.9rem}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+footer a{color:var(--ink-2)}
+.badge-pass{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(52,211,153,.4);color:var(--emerald);border-radius:999px;padding:6px 12px;font-size:.85rem}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="A11y Sentinel home"><span class="logo" aria-hidden="true">✓</span>A11y Sentinel</a>
+    <nav aria-label="Sections">
+      <ul>
+        <li><a href="#demo">Live demo</a></li>
+        <li><a href="#results">Results</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#decisions">Engineering</a></li>
+      </ul>
+    </nav>
+    <a class="btn small" href="https://github.com/GowthamReddyKotha14/a11y-sentinel">View on GitHub</a>
+  </div>
+</header>
+
+<main id="main">
+<div class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="pill"><span class="dot" aria-hidden="true"></span>WCAG 2.1 AA, verified fixes, CI gate</span>
+      <h1>Catch accessibility regressions <span class="grad">before they ship.</span></h1>
+      <p class="sub">A scanner that checks every page against <strong>WCAG 2.1 AA</strong>, blocks pull requests that make a site <strong>less accessible</strong>, and suggests fixes that are <strong>tested in a real browser</strong> before they're accepted.</p>
+      <div class="stats" aria-label="Project results">
+        <div class="stat"><b>2</b><span>hidden regressions caught</span></div>
+        <div class="stat"><b>11/14</b><span>fixes verified automatically</span></div>
+        <div class="stat"><b>16</b><span>automated tests passing in CI</span></div>
+        <div class="stat"><b>2027</b><span>ADA Title II deadline for public universities</span></div>
+      </div>
+      <div class="cta">
+        <a class="btn primary" href="#demo">Try the live demo <span aria-hidden="true">→</span></a>
+        <a class="btn" href="#how">How it works</a>
+      </div>
+    </div>
+
+    <div class="mock" aria-hidden="true">
+      <div class="browser">
+        <div class="bar"><i></i><i></i><i></i><span class="url">kestrel.edu/apply</span></div>
+        <div class="page">
+          <div class="beam"></div>
+          <h4>Apply to Kestrel State</h4>
+          <p class="faint flag" data-n="1">Applications close February 1.</p>
+          <div class="field">Full name</div>
+          <div class="field flag" data-n="2">&nbsp;</div>
+          <div class="field flag" data-n="3">Computer Science ▾</div>
+          <div class="row"><span class="submit">Submit application</span><span class="icon flag" data-n="4">💬</span></div>
+        </div>
+      </div>
+      <div class="chip-ok">✓ 11 fixes verified</div>
+      <div class="toast"><b>Gate failed: 2 new critical</b><span>apply.html button-name<br>events.html image-alt</span></div>
+    </div>
+  </div>
+</div>
+
+<section id="demo" aria-labelledby="demo-h">
+  <div class="wrap">
+    <p class="eyebrow">Live demo</p>
+    <h2 class="sec-h" id="demo-h">Scan a page right now, in your browser</h2>
+    <p class="sec-p">This runs the same engine as the tool: <strong>axe-core 4.10</strong> checking WCAG 2.1 A and AA. Nothing is simulated. Pick a sample or paste your own HTML, scan it, then ask for a fix. Each fix is applied to the page and re-scanned, and it's accepted only if the problem disappears and nothing else breaks.</p>
+
+    <div class="demo">
+      <div class="card panel">
+        <h3><span aria-hidden="true">📝</span>Page to test</h3>
+        <div class="presets" role="group" aria-label="Sample pages">
+          <button type="button" data-preset="apply" aria-pressed="true">Admissions form</button>
+          <button type="button" data-preset="news" aria-pressed="false">Campus news</button>
+          <button type="button" data-preset="clean" aria-pressed="false">Accessible page</button>
+          <button type="button" data-preset="own" aria-pressed="false">Paste your own</button>
+        </div>
+        <label class="lbl" for="src">HTML (scripts are removed before rendering)</label>
+        <textarea id="src" spellcheck="false"></textarea>
+        <div class="actions">
+          <button type="button" class="btn primary" id="scan">Scan page</button>
+          <button type="button" class="btn" id="fixall" disabled>Fix &amp; verify all</button>
+        </div>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+        <div class="frame-wrap">
+          <div class="bar"><i></i><i></i><i></i><span class="url">rendered page, issues outlined</span></div>
+          <iframe id="frame" title="Rendered page being scanned"></iframe>
+        </div>
+      </div>
+
+      <div class="card panel">
+        <h3><span aria-hidden="true">🛡️</span>WCAG 2.1 AA results</h3>
+        <div class="summary" aria-label="Issue counts">
+          <div class="total"><b id="c-total">0</b><span>issues</span></div>
+          <div><b id="c-critical">0</b><span>critical</span></div>
+          <div><b id="c-serious">0</b><span>serious</span></div>
+          <div><b id="c-fixed">0</b><span>fixed here</span></div>
+        </div>
+        <div class="empty" id="empty"><div><div style="font-size:2rem" aria-hidden="true">🔍</div>Click <strong>Scan page</strong> to run the checker.</div></div>
+        <ul class="issues" id="issues" aria-label="Issues found"></ul>
+        <div class="log" id="log" hidden><h4 id="log-h">Verified fixes</h4><ol id="log-list" aria-labelledby="log-h"></ol></div>
+        <p class="note">Automated checks find only part of WCAG. Keyboard flow, reading order, and whether alt text is <em>meaningful</em> still need a person.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="results" aria-labelledby="res-h">
+  <div class="wrap">
+    <p class="eyebrow">Results</p>
+    <h2 class="sec-h" id="res-h">What happened on the demo university site</h2>
+    <p class="sec-p">Version 2 of the site fixed two problems and accidentally introduced two new ones, the way real releases do. The total didn't change, so a simple count would say all is well. These are the real numbers from <code>sentinel demo</code>.</p>
+
+    <div class="grid3">
+      <div class="card res">
+        <h3>Regression ledger</h3>
+        <span class="meta">v1 vs v2, 5 pages</span>
+        <div class="ledger">
+          <div class="v"><b>14</b><span>v1 issues</span></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="v"><b>14</b><span>v2 issues</span></div>
+        </div>
+        <div class="trio">
+          <div class="n"><b>2</b><span>new</span></div>
+          <div class="f"><b>2</b><span>fixed</span></div>
+          <div class="o"><b>12</b><span>still open</span></div>
+        </div>
+      </div>
+
+      <div class="card res wide">
+        <h3>The CI gate, as a pull request would see it</h3>
+        <span class="meta">Fails only on new serious-or-worse issues, so a site with a backlog can adopt it on day one</span>
+<pre class="term" tabindex="0" aria-label="Gate output"><span class="dim">$ sentinel gate v2.json --baseline v1.json</span>
+new 2, fixed 2, still open 12
+<span class="err">::error title=New accessibility violation (critical)::apply.html: Buttons must have discernible text [button-name] at .icon-chat</span>
+<span class="err">::error title=New accessibility violation (critical)::events.html: Images must have alternative text [image-alt] at img</span>
+<span class="err">Gate FAILED: 2 new serious-or-worse violation(s).</span>
+<span class="dim">exit 1</span></pre>
+      </div>
+
+      <div class="card res">
+        <h3>Fix verification</h3>
+        <span class="meta">Each fix applied to the live page and re-scanned</span>
+        <div class="donut">
+          <svg width="120" height="120" viewBox="0 0 42 42" role="img" aria-label="11 of 14 fixes verified">
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="#1f2a47" stroke-width="5"/>
+            <circle cx="21" cy="21" r="15.9" fill="none" stroke="url(#g)" stroke-width="5" stroke-dasharray="78.6 21.4" stroke-dashoffset="25" stroke-linecap="round"/>
+            <defs><linearGradient id="g"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#a3e635"/></linearGradient></defs>
+            <text x="21" y="23.5" text-anchor="middle" font-size="7" font-weight="700" fill="#eef2ff" font-family="Space Grotesk">11/14</text>
+          </svg>
+          <p style="margin:0;font-size:.9rem">In the command-line run (rules only), the 3 not verified were <strong style="color:var(--ink)">color contrast</strong>, flagged rather than guessed. The browser demo above adds a contrast rule that computes a passing color and verifies it.</p>
+        </div>
+      </div>
+
+      <div class="card res wide">
+        <h3>What's failing on v2</h3>
+        <span class="meta">Elements per WCAG rule</span>
+        <div class="bars">
+          <div class="r"><code>link-name</code><span class="t"><i style="width:100%"></i></span><b>6</b></div>
+          <div class="r"><code>color-contrast</code><span class="t"><i style="width:50%"></i></span><b>3</b></div>
+          <div class="r"><code>image-alt</code><span class="t"><i style="width:33.3%"></i></span><b>2</b></div>
+          <div class="r"><code>button-name</code><span class="t"><i style="width:16.7%"></i></span><b>1</b></div>
+          <div class="r"><code>label</code><span class="t"><i style="width:16.7%"></i></span><b>1</b></div>
+          <div class="r"><code>select-name</code><span class="t"><i style="width:16.7%"></i></span><b>1</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <p class="eyebrow">System design</p>
+    <h2 class="sec-h" id="how-h">How it works</h2>
+    <p class="sec-p">A crawler feeds a real browser; results flow into a scan history; a diff decides whether a change can ship. Separately, a fix agent proposes patches and a verifier decides whether to trust them.</p>
+    <div class="flow">
+      <div class="card node"><div class="ic" aria-hidden="true">🕷️</div><h3>Crawl</h3><p>Stays on one site, obeys robots.txt, waits between pages.</p><span class="tag">crawler.py</span></div>
+      <div class="card node"><div class="ic" aria-hidden="true">🔬</div><h3>Scan</h3><p>Headless Chromium runs axe-core against WCAG 2.1 A/AA after CSS and JS load.</p><span class="tag">scanner.py</span></div>
+      <div class="card node"><div class="ic" aria-hidden="true">🗄️</div><h3>Store &amp; diff</h3><p>Every scan saved in DuckDB; each issue fingerprinted to find new, fixed, and open.</p><span class="tag">store.py, diff.py</span></div>
+      <div class="card node"><div class="ic" aria-hidden="true">🚦</div><h3>Gate</h3><p>GitHub Action fails a pull request that adds new serious issues.</p><span class="tag">cli.py gate</span></div>
+    </div>
+    <div class="card loop" aria-label="Fix agent loop">
+      <div class="step"><b>Propose</b><span>rules first, Claude when enabled</span></div>
+      <span class="arr" aria-hidden="true">→</span>
+      <div class="step"><b>Apply to live DOM</b><span>fresh browser page</span></div>
+      <span class="arr" aria-hidden="true">→</span>
+      <div class="step"><b>Re-scan</b><span>whole page, not just the element</span></div>
+      <span class="arr" aria-hidden="true">→</span>
+      <div class="step"><b>Accept or reject</b><span>fewer failures, nothing new, no content lost</span></div>
+      <span class="arr back" aria-hidden="true">↺</span>
+      <div class="step"><b>Retry with reason</b><span>the rejection is fed back once</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="decisions" aria-labelledby="dec-h">
+  <div class="wrap">
+    <p class="eyebrow">Engineering decisions</p>
+    <h2 class="sec-h" id="dec-h">The trade-offs behind it</h2>
+    <p class="sec-p">The interesting part of this project isn't calling a scanner. It's deciding what to trust, what to block, and what to leave to a person.</p>
+    <div class="dec">
+      <div class="card d"><span class="k">01</span><h3>Never trust the fix, verify it</h3><p>A model can "fix" a missing alt by deleting the image. The checker goes quiet and the content is gone. Every fix must keep the element's tag and text, reduce the failure, and break nothing else.</p></div>
+      <div class="card d"><span class="k">02</span><h3>Gate on regressions, not the backlog</h3><p>A gate that fails on 300 old issues gets switched off in a week. Blocking only new serious issues is enforceable from day one.</p></div>
+      <div class="card d"><span class="k">03</span><h3>Fingerprints that survive copy edits</h3><p>Identity is page + rule + selector, not the element's HTML, so a text change doesn't look like a new issue. A restructure shows as fixed + new: noisy, but never silent.</p></div>
+      <div class="card d"><span class="k">04</span><h3>Rules first, LLM second</h3><p>Missing language tags and unlabeled fields are mechanical: fixed by rules instantly, for free. The LLM handles what needs judgement.</p></div>
+      <div class="card d"><span class="k">05</span><h3>Verified isn't the same as correct</h3><p>The verifier proves an image <em>has</em> alt text, not that it describes the picture. Those fixes are flagged for human review.</p></div>
+      <div class="card d"><span class="k">06</span><h3>Held to its own standard</h3><p>The test suite scans the tool's own report and fails on any violation. This page passes the same check.</p></div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="stack-h" style="padding-top:20px">
+  <div class="wrap">
+    <p class="eyebrow">Tech stack</p>
+    <h2 class="sec-h" id="stack-h" style="margin-bottom:22px">Built with</h2>
+    <div class="stack">
+      <span>Python<small>core tool</small></span>
+      <span>Playwright<small>headless Chromium</small></span>
+      <span>axe-core 4.10<small>WCAG rules engine</small></span>
+      <span>DuckDB<small>scan history</small></span>
+      <span>Claude API<small>fix proposals</small></span>
+      <span>GitHub Actions<small>CI gate</small></span>
+      <span>pytest<small>16 tests</small></span>
+      <span>Jinja2<small>HTML reports</small></span>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <strong style="color:var(--ink)">Gowtham Reddy Kotha</strong>. <a href="https://github.com/GowthamReddyKotha14/a11y-sentinel">Source on GitHub</a>. <a href="https://gowthamreddykotha14.github.io/Gowtham-Reddy-Portfolio/">Portfolio</a>.</span>
+    <span class="badge-pass">✓ This page passes its own WCAG 2.1 AA scan</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+const AXE_URL = new URL("axe.min.js", location.href).href;
+const IMG = (n) => new URL("img/" + n, location.href).href;
+
+const PRESETS = {
+  apply: `<html>
+<head><title>Apply | Kestrel State</title>
+<style>
+  body{font-family:Georgia,serif;margin:24px;color:#222}
+  .muted{color:#b5b5b5}
+  .icon-chat{width:36px;height:36px;border-radius:50%;border:0;background:#e2e8f0}
+  input,select{padding:6px;margin:4px 0;display:block}
+</style></head>
+<body>
+  <h1>Apply to Kestrel State</h1>
+  <p class="muted">Applications close February 1.</p>
+  <form>
+    <input type="text" name="full_name" placeholder="Full name">
+    <input type="email" name="email_address">
+    <select name="intended_major"><option>Computer Science</option><option>Biology</option></select>
+    <button type="submit">Submit application</button>
+    <button type="button" class="icon-chat"></button>
+  </form>
+</body>
+</html>`,
+  news: `<html lang="en">
+<head><title>Campus news | Kestrel State</title>
+<style>
+  body{font-family:Georgia,serif;margin:24px;color:#222}
+  img{max-width:100%;height:auto}
+  .date{color:#aaaaaa;font-size:14px}
+  .icon-search{display:inline-block;width:24px;height:24px;background:#ccc;border-radius:50%}
+</style></head>
+<body>
+  <nav><a href="index.html">Home</a> <a href="search.html" class="icon-search"></a></nav>
+  <h1>Campus news</h1>
+  <p class="date">Posted October 14</p>
+  <img src="${IMG("homecoming-parade.svg")}">
+  <figure>
+    <img src="${IMG("students-library.svg")}">
+    <figcaption>Students studying in Hale Library</figcaption>
+  </figure>
+  <p>Read the <a href="report.html"><span class="icon-arrow"></span></a> full story.</p>
+</body>
+</html>`,
+  clean: `<html lang="en">
+<head><title>Visit | Kestrel State</title>
+<style>body{font-family:Georgia,serif;margin:24px;color:#222} img{max-width:100%;height:auto}</style></head>
+<body>
+  <h1>Visit campus</h1>
+  <img src="${IMG("campus-quad.svg")}" alt="Founders Hall on the main quad">
+  <p>Tours run every weekday at 10 a.m.</p>
+  <label for="em">Email</label>
+  <input id="em" type="email" name="email">
+  <button type="submit">Book a tour</button>
+</body>
+</html>`,
+  own: `<!-- Paste any HTML here, then press "Scan page". -->
+<html>
+<body>
+  <img src="photo.jpg">
+  <button></button>
+</body>
+</html>`,
+};
+
+const $ = (s) => document.querySelector(s);
+const src = $("#src"), frame = $("#frame"), list = $("#issues"), statusEl = $("#status");
+let current = "", violations = [], fixedCount = 0, busy = false, fixLog = [];
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function setStatus(t){ statusEl.textContent = t; }
+
+// Remove anything executable before rendering untrusted HTML.
+function sanitize(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script,iframe,object,embed,link[rel=import]").forEach(n => n.remove());
+  doc.querySelectorAll("*").forEach(el => {
+    for (const a of [...el.attributes]) {
+      if (/^on/i.test(a.name) || /^\s*javascript:/i.test(a.value)) el.removeAttribute(a.name);
+    }
+  });
+  return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+}
+
+function render(html){
+  return new Promise(resolve => {
+    frame.onload = async () => {
+      const d = frame.contentDocument;
+      d.addEventListener("click", e => e.preventDefault(), true);
+      d.addEventListener("submit", e => e.preventDefault(), true);
+      await new Promise(r => { const s = d.createElement("script"); s.id = "__axe"; s.src = AXE_URL; s.onload = r; d.head.appendChild(s); });
+      resolve(d);
+    };
+    frame.srcdoc = sanitize(html);
+  });
+}
+
+async function runAxe(){
+  const r = await frame.contentWindow.axe.run(frame.contentDocument, {runOnly:{type:"tag", values:TAGS}, resultTypes:["violations"]});
+  const out = [];
+  for (const v of r.violations) for (const n of v.nodes) {
+    out.push({rule:v.id, help:v.help, helpUrl:v.helpUrl, impact:n.impact || v.impact,
+              target:n.target.map(t => Array.isArray(t) ? t.join(" ") : t).join(" "), html:n.html,
+              data:(n.any[0] && n.any[0].data) || null});
+  }
+  return out;
+}
+
+function serialize(d){
+  const c = d.documentElement.cloneNode(true);
+  c.querySelectorAll("#__axe,#__hl").forEach(n => n.remove());
+  c.querySelectorAll("[data-a11y-n]").forEach(n => n.removeAttribute("data-a11y-n"));
+  return "<!DOCTYPE html>\n" + c.outerHTML;
+}
+
+function highlight(d){
+  const st = d.createElement("style"); st.id = "__hl";
+  st.textContent = "[data-a11y-n]{outline:3px solid #f43f5e!important;outline-offset:2px}";
+  d.head.appendChild(st);
+  violations.forEach((v, i) => { try { const el = d.querySelector(v.target); if (el) el.setAttribute("data-a11y-n", i + 1); } catch(e){} });
+}
+
+/* ---------- proposers: deterministic rules (same table as the Python tool) ---------- */
+function humanize(s){
+  s = (s || "").split("?")[0].split("/").pop().replace(/\.[a-z0-9]+$/i, "");
+  s = s.replace(/[-_]+/g, " ").replace(/\b(img|image|icon|fa|btn|photo|pic)\b/gi, "").replace(/\s+/g, " ").trim();
+  return s ? s[0].toUpperCase() + s.slice(1) : "";
+}
+function hexToRgb(h){ h = h.replace("#",""); if (h.length === 3) h = [...h].map(c => c + c).join(""); const n = parseInt(h, 16); return [n>>16&255, n>>8&255, n&255]; }
+function lum([r,g,b]){ const f = c => { c /= 255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); }; return .2126*f(r) + .7152*f(g) + .0722*f(b); }
+function ratio(a,b){ const [x,y] = [lum(a), lum(b)].sort((p,q) => q - p); return (x + .05) / (y + .05); }
+function toHex(rgb){ return "#" + rgb.map(c => Math.round(c).toString(16).padStart(2, "0")).join(""); }
+
+function propose(v, el){
+  const a = n => el.getAttribute(n) || "";
+  switch (v.rule) {
+    case "html-has-lang": return {attrs:{lang:"en"}, why:"Declares the page language so screen readers use the right voice.", review:true};
+    case "image-alt": {
+      const fig = el.closest("figure"); const cap = fig && fig.querySelector("figcaption");
+      const g = (cap && cap.textContent.trim()) || a("title") || humanize(a("src"));
+      return g ? {attrs:{alt:g}, why:"Placeholder alt text from the caption or file name. A person must confirm it describes the image.", review:true} : null;
+    }
+    case "label": case "select-name": {
+      const g = a("placeholder") || humanize(a("name") || a("id"));
+      return g ? {attrs:{"aria-label":g}, why:"Gives the field an accessible name. Better long-term: a visible <label>.", review:true} : null;
+    }
+    case "button-name": case "link-name": {
+      const cls = [...el.classList].find(c => c.includes("icon") || c.startsWith("fa-")) || "";
+      const g = a("title") || humanize(cls) || (v.rule === "link-name" ? humanize(a("href")) : "");
+      return g ? {attrs:{"aria-label":g}, why:"Icon-only control had no accessible name.", review:true} : null;
+    }
+    case "color-contrast": {
+      if (!v.data || !v.data.fgColor || !v.data.bgColor) return null;
+      const fg = hexToRgb(v.data.fgColor), bg = hexToRgb(v.data.bgColor);
+      const need = parseFloat(String(v.data.expectedContrastRatio || "4.5")) + 0.1;
+      const toward = lum(bg) > .5 ? [0,0,0] : [255,255,255];
+      let c = fg;
+      for (let t = 0.02; t <= 1 && ratio(c, bg) < need; t += 0.02) c = fg.map((x, i) => x + (toward[i] - x) * t);
+      return {attrs:{style:((a("style") ? a("style").replace(/;?\s*$/, ";") : "") + "color:" + toHex(c))},
+              why:`Darkens the text from ${v.data.fgColor} to ${toHex(c)}: contrast ${(+v.data.contrastRatio).toFixed(2)}:1 → ${ratio(c,bg).toFixed(2)}:1 (needs ${String(v.data.expectedContrastRatio)}).`, review:false};
+    }
+  }
+  return null;
+}
+
+/* ---------- verifier: apply to a fresh render, re-scan the whole page ---------- */
+async function verify(v, prop){
+  const d = await render(current);
+  const before = await runAxe();
+  const el = d.querySelector(v.target);
+  if (!el) return {ok:false, reason:"Element not found on a fresh render."};
+  const origTag = el.tagName, origText = el.textContent.replace(/\s+/g, " ").trim();
+  let target = el;
+  if (prop.html !== undefined) {
+    if (el === d.documentElement || el === d.body) return {ok:false, reason:"Refusing to replace <html> or <body>."};
+    const t = d.createElement("template"); t.innerHTML = prop.html.trim();
+    const repl = t.content.firstElementChild;
+    if (!repl || repl.tagName !== origTag) return {ok:false, reason:`Rejected: the patch changes <${origTag.toLowerCase()}> into <${repl ? repl.tagName.toLowerCase() : "nothing"}>. The checker would go quiet, but the content would be gone.`};
+    if (!repl.textContent.replace(/\s+/g, " ").trim().includes(origText)) return {ok:false, reason:"Rejected: the patch removes visible text."};
+    el.replaceWith(repl); target = repl;
+  } else {
+    for (const [k, val] of Object.entries(prop.attrs)) el.setAttribute(k, val);
+  }
+  const after = await runAxe();
+  const cnt = (arr, r) => arr.filter(x => x.rule === r).length;
+  const rb = cnt(before, v.rule), ra = cnt(after, v.rule);
+  if (ra >= rb) return {ok:false, reason:`Rejected: '${v.rule}' still fails (${rb} → ${ra} elements).`};
+  const key = x => x.rule + "|" + x.target;
+  const old = new Set(before.filter(x => x.rule !== v.rule).map(key));
+  const added = after.filter(x => x.rule !== v.rule && !old.has(key(x)));
+  if (added.length) return {ok:false, reason:`Rejected: the fix introduced new problems (${[...new Set(added.map(x => x.rule))].join(", ")}).`};
+  return {ok:true, reason:`Verified: '${v.rule}' ${rb} → ${ra} elements, nothing else broke.`, html:serialize(d), after:target.outerHTML};
+}
+
+/* ---------- UI ---------- */
+function drawLog(){
+  $("#log").hidden = !fixLog.length;
+  $("#log-h").textContent = `Verified fixes (${fixLog.length})`;
+  $("#log-list").innerHTML = fixLog.map(f => `<li><code>${esc(f.rule)}</code>: ${esc(f.change)}<br><span class="meta">${esc(f.reason)}</span></li>`).join("");
+}
+function record(v, prop, res){
+  const change = prop.html !== undefined ? "replaced element" : Object.entries(prop.attrs).map(([k, val]) => `${k}="${val}"`).join(", ");
+  fixLog.push({rule:v.rule, change, reason:res.reason});
+}
+
+function counts(){
+  $("#c-total").textContent = violations.length;
+  $("#c-critical").textContent = violations.filter(v => v.impact === "critical").length;
+  $("#c-serious").textContent = violations.filter(v => v.impact === "serious").length;
+  $("#c-fixed").textContent = fixedCount;
+}
+
+function draw(){
+  counts();
+  $("#empty").hidden = true;
+  list.innerHTML = "";
+  if (!violations.length) {
+    list.innerHTML = `<li class="issue done"><div class="issue-top"><span class="num">✓</span><div><h4>No WCAG 2.1 AA failures detected</h4><span class="meta">Automated checks passed. Manual review still matters.</span></div></div></li>`;
+  }
+  violations.forEach((v, i) => {
+    const li = document.createElement("li"); li.className = "issue";
+    const canFix = !!(v.rule in {"html-has-lang":1,"image-alt":1,"label":1,"select-name":1,"button-name":1,"link-name":1,"color-contrast":1});
+    li.innerHTML = `
+      <div class="issue-top"><span class="num">${i + 1}</span><div>
+        <h4>${esc(v.help)}</h4>
+        <span class="meta"><span class="imp ${esc(v.impact)}">${esc(v.impact)}</span><code>${esc(v.rule)}</code> on <code>${esc(v.target)}</code></span>
+      </div></div>
+      <pre class="snip">${esc(v.html)}</pre>
+      <div class="actions">
+        ${canFix ? `<button type="button" class="btn small" data-act="fix">Fix &amp; verify</button>` : ""}
+        ${v.rule === "image-alt" ? `<button type="button" class="btn small" data-act="cheat">Try a bad fix</button>` : ""}
+        <a class="btn small" href="${esc(v.helpUrl)}" target="_blank" rel="noopener">Rule docs<span class="vh"> for ${esc(v.rule)} (opens in new tab)</span></a>
+      </div>
+      <div class="out"></div>`;
+    li.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => act(v, li, b.dataset.act)));
+    list.appendChild(li);
+  });
+  $("#fixall").disabled = !violations.length;
+  drawLog();
+}
+
+async function scan(msg){
+  busy = true; $("#scan").disabled = true;
+  setStatus("Rendering and scanning…");
+  const d = await render(current);
+  violations = await runAxe();
+  highlight(d);
+  draw();
+  setStatus(msg || `Scan complete: ${violations.length} ${violations.length === 1 ? "issue" : "issues"} found.`);
+  busy = false; $("#scan").disabled = false;
+}
+
+async function act(v, li, kind){
+  if (busy) return; busy = true;
+  li.querySelectorAll("button").forEach(b => b.disabled = true);
+  const out = li.querySelector(".out");
+  const el = frame.contentDocument.querySelector(v.target);
+  let prop = null;
+  if (kind === "cheat") prop = {html:"<span></span>", why:"A shortcut a careless model might take: swap the image for an empty span."};
+  else prop = el && propose(v, el);
+  if (!prop) {
+    out.innerHTML = `<div class="verdict no"><b>No automatic fix</b>This one needs human judgement (or the LLM mode in the full tool).</div>`;
+    busy = false; li.querySelectorAll("button").forEach(b => b.disabled = false); return;
+  }
+  setStatus("Applying the fix to a fresh copy and re-scanning…");
+  const res = await verify(v, prop);
+  const proposed = prop.html !== undefined ? prop.html : Object.entries(prop.attrs).map(([k, val]) => `${k}="${val}"`).join("\n");
+  out.innerHTML = `<div class="verdict ${res.ok ? "ok" : "no"}"><b>${res.ok ? "✓ " : "✗ "}${esc(res.reason)}</b>
+      ${esc(prop.why)}${prop.review && res.ok ? " <strong>Needs human review.</strong>" : ""}
+      <div class="pair"><div><small>Before</small><pre class="snip">${esc(v.html)}</pre></div><div><small>Proposed</small><pre class="snip">${esc(proposed)}</pre></div></div></div>`;
+  busy = false;
+  if (res.ok) {
+    current = res.html; src.value = current; fixedCount++; record(v, prop, res);
+    await scan(`Fix applied. Re-scanned: ${violations.length} ${violations.length === 1 ? "issue" : "issues"} left.`);
+  } else {
+    await render(current).then(d => highlight(d));
+    setStatus(kind === "cheat" ? "The verifier blocked a fix that would have deleted content." : "Fix rejected.");
+    li.querySelectorAll("button").forEach(b => b.disabled = false);
+  }
+}
+
+async function fixAll(){
+  if (busy) return;
+  $("#fixall").disabled = true;
+  let progress = true, rounds = 0;
+  while (progress && rounds++ < 40) {
+    progress = false;
+    for (const v of violations) {
+      const d = await render(current);
+      const el = d.querySelector(v.target);
+      const prop = el && propose(v, el);
+      if (!prop) continue;
+      setStatus(`Verifying a fix for ${v.rule}…`);
+      const res = await verify(v, prop);
+      if (res.ok) { current = res.html; src.value = current; fixedCount++; progress = true; record(v, prop, res);
+        const d2 = await render(current); violations = await runAxe(); highlight(d2); counts(); break; }
+    }
+  }
+  await scan(`Done: ${fixedCount} verified ${fixedCount === 1 ? "fix" : "fixes"} applied, ${violations.length} ${violations.length === 1 ? "issue" : "issues"} left for a person.`);
+}
+
+function load(name){
+  document.querySelectorAll("[data-preset]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.preset === name)));
+  current = PRESETS[name]; src.value = current; fixedCount = 0; violations = []; fixLog = []; drawLog();
+  list.innerHTML = ""; $("#empty").hidden = false; counts(); $("#fixall").disabled = true; setStatus("");
+  render(current);
+}
+
+document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => load(b.dataset.preset)));
+$("#scan").addEventListener("click", () => { if (src.value !== current) { fixedCount = 0; fixLog = []; } current = src.value; scan(); });
+$("#fixall").addEventListener("click", fixAll);
+load("apply");
+})();
+</script>
+</body>
+</html>
